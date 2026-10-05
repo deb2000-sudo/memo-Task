@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MemoTask
 
-## Getting Started
+MemoTask is a voice-first to-do. You speak a thought, ElevenLabs Scribe v2 transcribes it, and Gemma 3 4B (running locally through Ollama) turns the transcript into a task. Nothing is saved until you confirm it. Saved tasks stay in this browser’s IndexedDB.
 
-First, run the development server:
+A saved task can also be remixed: Gemma proposes a clearer title, description, priority, category, and subtasks. The original task changes only after you click **Apply Changes**.
+
+## What you need
+
+- [Node.js](https://nodejs.org) 20.9 or newer, with npm
+- [Ollama](https://ollama.com)
+- An [ElevenLabs](https://elevenlabs.io) API key (speech-to-text only)
+- A microphone, and a browser that can record audio (Chrome, Edge, or Safari)
+
+Task understanding does not use a hosted chat model. Gemma runs on your machine at `http://127.0.0.1:11434`.
+
+## 1. Get the code
+
+```bash
+git clone https://github.com/deb2000-sudo/memo-Task.git
+cd memo-Task
+```
+
+## 2. Install the app
+
+```bash
+npm install
+```
+
+## 3. Install and start Ollama
+
+Install Ollama from [ollama.com](https://ollama.com), then start it.
+
+On macOS, opening the Ollama app starts the local server. From a terminal:
+
+```bash
+ollama serve
+```
+
+Leave that process running. In a second terminal, download the model this app calls:
+
+```bash
+ollama pull gemma3:4b
+```
+
+Check that Ollama can see it:
+
+```bash
+ollama list
+```
+
+`gemma3:4b` should be in the list. The model name is fixed in the app. A different Ollama model will not be used.
+
+## 4. Add the ElevenLabs key
+
+Create `.env.local` in the project root:
+
+```bash
+ELEVENLABS_API_KEY=your_key_here
+```
+
+Get the key from the ElevenLabs dashboard. The file is gitignored. Do not prefix the variable with `NEXT_PUBLIC_`, and do not commit it. The browser never receives this key. The Next.js server uses it only to send the recording to Scribe v2.
+
+Restart the dev server after you create or change this file.
+
+## 5. Start MemoTask
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The header should show **Gemma 3 4B • Local**. If it says **Offline**, Ollama is not running or `gemma3:4b` is not installed. You can also check the health route:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+curl http://127.0.0.1:3000/api/health
+```
 
-## Learn More
+A working setup returns:
 
-To learn more about Next.js, take a look at the following resources:
+```json
+{ "ollama": true, "model": "gemma3:4b" }
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 6. Try it
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Allow the microphone when the browser asks.
+2. Hold **Record a memo** and say a task, for example “buy milk tomorrow morning.”
+3. Release the button. The screen transcribes with ElevenLabs, then Gemma reads the transcript on this computer.
+4. Edit the draft if you want, then confirm it. Cancel discards it.
+5. On a saved task, click **Remix**, add an optional note, and click **Remix with Gemma**.
+6. **Apply Changes** updates that task. **Cancel** leaves it as it was.
 
-## Deploy on Vercel
+Tasks, transcripts, and recordings stay in this browser. Clearing site data removes them. There is no separate database to install.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Checks
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm test
+npx tsc --noEmit
+npm run lint
+```
+
+## If something fails
+
+| What you see | What to do |
+| --- | --- |
+| Gemma 3 4B • Offline | Start Ollama (`ollama serve`) and confirm `ollama list` includes `gemma3:4b`. |
+| The local model is not installed | Run `ollama pull gemma3:4b`. |
+| Transcription is not configured on the server | Put `ELEVENLABS_API_KEY` in `.env.local` and restart `npm run dev`. |
+| The microphone never starts | Use `localhost` (not a raw IP), and allow microphone access for the site. |
+| Remix spins, then fails | Ollama must stay running. The first reply from a 4B model can take a while. |
+
+## What leaves this computer
+
+The recording is uploaded to the Next.js server, which sends that file to ElevenLabs for transcription. The transcript is then read by Gemma through Ollama on `127.0.0.1`. Confirmed tasks are stored in IndexedDB in the browser you confirmed them in.
